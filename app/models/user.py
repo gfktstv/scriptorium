@@ -14,10 +14,10 @@ class UserBase(SQLModel):
     )
     email: EmailStr
     
-    @field_validator('username')
+    @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
-        if not re.fullmatch(r'[A-Za-z0-9_]+', v):
+        if not re.fullmatch(r"[A-Za-z0-9_]+", v):
             raise ValueError(
                 "Username can only contain Latin letters, numbers, and underscores"
             )
@@ -37,11 +37,11 @@ class UserRegister(UserBase):
         description="Password must be 8-72 characters long, include at least one uppercase letter, one lowercase letter, one number."
     )
     
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
         print("ЙЙОУ")
-        if not re.fullmatch(r'[A-Za-z0-9_!@#$%^&*()\-+]+', v):
+        if not re.fullmatch(r"[A-Za-z0-9_!@#$%^&*()\-+]+", v):
             raise ValueError(
                 "Password can only contain Latin letters, numbers, and special characters like _!@#$%^&*()-+"
             )
