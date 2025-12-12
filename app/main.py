@@ -1,7 +1,30 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
+from sqlmodel import SQLModel
 
-app = FastAPI()
+from app.core.config import settings
+from app.db.session import engine
+import app.models
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Temporary solution for database initialization (will be replaced with migrations later)
+    SQLModel.metadata.create_all(engine)
+    
+    yield
+    
+app = FastAPI(
+	title="Scriptorium API",
+	version="1.0.0",
+	lifespan=lifespan
+)
 
 if __name__ == "__main__":
-	uvicorn.run("main:app", reload=True)
+	uvicorn.run(
+		"app.main:app", 
+		port=settings.PORT, 
+		host=settings.HOST, 
+		reload=True
+	)

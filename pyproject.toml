@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Scriptorium"
+version = "0.1.0"
+description = "Scriptorium API"
+authors = [
+  { name = "Grigorii Feoktistov" },
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "annotated-doc",
+    "annotated-types",
+    "anyio",
+    "click",
+    "dnspython",
+    "email-validator",
+    "fastapi",
+    "h11",
+    "idna",
+    "passlib",
+    "psycopg2",
+    "pydantic",
+    "pydantic-settings",
+    "pydantic_core",
+    "python-dotenv",
+    "sniffio",
+    "SQLAlchemy",
+    "sqlmodel",
+    "starlette",
+    "typing-inspection",
+    "typing_extensions",
+    "uvicorn",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

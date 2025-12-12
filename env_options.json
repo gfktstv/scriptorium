@@ -1,0 +1,37 @@
+{
+    "rawEnvs": {
+      "PORT": {
+        "isRequired": false,
+        "description": "Web server port",
+        "defaultValue": "8000"
+      },
+      "HOST": {
+        "isRequired": false,
+        "description": "Web server host",
+        "defaultValue": "0.0.0.0"
+      },
+      "DB_USER": {
+        "isRequired": false,
+        "description": "Username for database connection",
+        "defaultValue": "postgres"
+      },
+      "DB_NAME": {
+        "isRequired": true,
+        "description": "Database name for the application"
+      }
+    },
+    "secretEnvs": {
+      "DATABASE_URL": {
+        "isRequired": true,
+        "description": "URL for database connection (e.g. postgresql://user:pass@host:port/dbname)"
+      },
+      "SECRET_KEY": {
+        "isRequired": true,
+        "description": "Secret key for application security"
+      },
+      "DB_PASSWORD": {
+        "isRequired": true,
+        "description": "Password for database connection"
+      }
+    }
+  }
