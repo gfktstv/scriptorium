@@ -9,12 +9,14 @@ description = "Scriptorium API"
 authors = [
   { name = "Grigorii Feoktistov" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Framework :: FastAPI",
 ]
 dependencies = [
+    "passlib==1.7.4",
+    "bcrypt==3.2.0",
     "annotated-doc",
     "annotated-types",
     "anyio",
@@ -24,7 +26,6 @@ dependencies = [
     "fastapi",
     "h11",
     "idna",
-    "passlib",
     "psycopg2",
     "pydantic",
     "pydantic-settings",
@@ -36,7 +37,7 @@ dependencies = [
     "starlette",
     "typing-inspection",
     "typing_extensions",
-    "uvicorn",
+    "uvicorn"
 ]
 
 [tool.setuptools.packages.find]
