@@ -1,6 +1,6 @@
 import re
-
 from typing import Optional
+
 from sqlmodel import SQLModel, Field
 from pydantic import EmailStr, field_validator
 
@@ -10,7 +10,8 @@ class UserBase(SQLModel):
         min_length=3, 
         max_length=30, 
         schema_extra={"pattern": r"^[a-zA-Z0-9_]{3,30}$"},
-        description="Username must be 3-30 characters long and can only contain letters, numbers, and underscores."
+        description="Username must be 3-30 characters long and can only contain letters, numbers, and underscores.",
+        unique=True
     )
     email: EmailStr
     
