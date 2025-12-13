@@ -3,14 +3,15 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db
-from app.models.user import UserRegister, User
+from app.models.user import UserRegister, User, UserPublic
 from app.core.security import hash_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post(
     "/register", 
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserPublic
 )
 def create_user(
     user: UserRegister,
@@ -49,3 +50,6 @@ def create_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="User already exists"
         )
+        
+    session.refresh(new_user)
+    return UserPublic(id=new_user.id, username=new_user.username)

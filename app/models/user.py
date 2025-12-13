@@ -5,6 +5,10 @@ from sqlmodel import SQLModel, Field
 from pydantic import EmailStr, field_validator
 
 
+class UserPublic(SQLModel):
+    id: int
+    username: str
+
 class UserBase(SQLModel):
     username: str = Field(
         min_length=3, 
@@ -13,7 +17,7 @@ class UserBase(SQLModel):
         description="Username must be 3-30 characters long and can only contain letters, numbers, and underscores.",
         unique=True
     )
-    email: EmailStr
+    email: EmailStr = Field(unique=True, index=True)
     
     @field_validator("username")
     @classmethod
