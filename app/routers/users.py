@@ -2,9 +2,11 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
+from app.core.security import hash_password, verify_password, create_access_token
 from app.db.session import get_db
-from app.models.user import UserRegister, User, UserPublic
-from app.core.security import hash_password
+from app.models.user import UserPublic, User, UserRegister, UserLogin
+from app.models.token import Token
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -17,8 +19,11 @@ def create_user(
     user: UserRegister,
     session: Session = Depends(get_db)
     ):
+    normalized_username = user.username.lower().strip()
+    normalized_email = user.email.lower().strip()
+    
     username_record = session.exec(
-        select(User).where(User.username == user.username)
+        select(User).where(User.username == normalized_username)
     ).first()
     if username_record is not None:
         raise HTTPException(
@@ -27,7 +32,7 @@ def create_user(
         )
     
     email_record = session.exec(
-        select(User).where(User.email == user.email)
+        select(User).where(User.email == normalized_email)
     ).first()
     if email_record is not None:
         raise HTTPException(
@@ -36,8 +41,8 @@ def create_user(
         )
     
     new_user = User(
-            username=user.username,
-            email=user.email,
+            username=normalized_username,
+            email=normalized_email,
             hashed_password=hash_password(user.password)
         )
     
@@ -53,3 +58,36 @@ def create_user(
         
     session.refresh(new_user)
     return UserPublic(id=new_user.id, username=new_user.username)
+
+@router.post(
+    "/login",
+    status_code=status.HTTP_200_OK,
+    response_model=Token
+)
+def login_user(
+    user: UserLogin,
+    session: Session = Depends(get_db)
+):
+    credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User with this email/username does not exist or password is incorrect",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # user.username is username or email
+    normalized_login = user.username.lower().strip()
+    
+    record = session.exec(
+        select(User).where(
+            (User.username == normalized_login)
+            | (User.email == normalized_login)
+        )
+    ).first()
+    
+    if record is None:
+        raise credentials_exception
+        
+    if not verify_password(user.password, record.hashed_password):
+        raise credentials_exception
+    
+    return Token(access_token=create_access_token(record.id))

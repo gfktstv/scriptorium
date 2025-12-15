@@ -8,6 +8,10 @@ from pydantic import EmailStr, field_validator
 class UserPublic(SQLModel):
     id: int
     username: str
+    
+class UserLogin(SQLModel):
+    username: str = Field(description="Username or email")
+    password: str
 
 class UserBase(SQLModel):
     username: str = Field(
@@ -45,7 +49,6 @@ class UserRegister(UserBase):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        print("ЙЙОУ")
         if not re.fullmatch(r"[A-Za-z0-9_!@#$%^&*()\-+]+", v):
             raise ValueError(
                 "Password can only contain Latin letters, numbers, and special characters like _!@#$%^&*()-+"
@@ -57,4 +60,3 @@ class UserRegister(UserBase):
         if not re.search(r"\d", v):
             raise ValueError("Password must include at least one number.")
         return v
-    

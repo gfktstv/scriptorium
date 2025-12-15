@@ -37,7 +37,9 @@ dependencies = [
     "starlette",
     "typing-inspection",
     "typing_extensions",
-    "uvicorn"
+    "uvicorn",
+    "python-jose[cryptography]",
+    "python-multipart"
 ]
 
 [tool.setuptools.packages.find]
