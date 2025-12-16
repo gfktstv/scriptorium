@@ -13,7 +13,7 @@ from app.models.user import User
 
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_access_token(subject: str | int) -> str:

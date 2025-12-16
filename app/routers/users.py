@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
@@ -59,6 +60,26 @@ def create_user(
     session.refresh(new_user)
     return UserPublic(id=new_user.id, username=new_user.username)
 
+def authenticate_user(session: Session, identifier: str, password: str):
+    credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User with this email/username does not exist or password is incorrect",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    identifier = identifier.lower().strip()
+    user = session.exec(
+        select(User).where(
+            (User.username == identifier)
+            | (User.email == identifier)
+        )
+    ).first()
+    
+    if user is None or not verify_password(password, user.hashed_password):
+        raise credentials_exception
+    
+    return user
+
 @router.post(
     "/login",
     status_code=status.HTTP_200_OK,
@@ -68,26 +89,28 @@ def login_user(
     user: UserLogin,
     session: Session = Depends(get_db)
 ):
-    credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User with this email/username does not exist or password is incorrect",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    user = authenticate_user(
+            session, 
+            identifier=user.username, 
+            password=user.password
+            )
     
-    # user.username is username or email
-    normalized_login = user.username.lower().strip()
+    return Token(access_token=create_access_token(user.id))
+
+# Endpoint for Swagger UI (authorize button)
+@router.post(
+    "/token",
+    response_model=Token,
+    include_in_schema=False
+)
+def login_swagger(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_db)
+):
+    user = authenticate_user(
+            session, 
+            identifier=form_data.username, 
+            password=form_data.password
+            )
     
-    record = session.exec(
-        select(User).where(
-            (User.username == normalized_login)
-            | (User.email == normalized_login)
-        )
-    ).first()
-    
-    if record is None:
-        raise credentials_exception
-        
-    if not verify_password(user.password, record.hashed_password):
-        raise credentials_exception
-    
-    return Token(access_token=create_access_token(record.id))
+    return Token(access_token=create_access_token(user.id))
