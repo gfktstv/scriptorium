@@ -19,7 +19,8 @@ class UserBase(SQLModel):
         max_length=30, 
         schema_extra={"pattern": r"^[a-zA-Z0-9_]{3,30}$"},
         description="Username must be 3-30 characters long and can only contain letters, numbers, and underscores.",
-        unique=True
+        unique=True,
+        index=True
     )
     email: EmailStr = Field(unique=True, index=True)
     

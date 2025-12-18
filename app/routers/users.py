@@ -114,3 +114,24 @@ def login_swagger(
             )
     
     return Token(access_token=create_access_token(user.id))
+
+@router.get(
+    "/{username}",
+    response_model=UserPublic
+)
+def get_user(
+    username: str,
+    session: Session = Depends(get_db)
+):
+    normalized_username = username.lower().strip()
+    user = session.exec(
+        select(User).where(User.username == normalized_username)
+    ).first()
+    
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+        
+    return UserPublic(id=user.id, username=user.username)
