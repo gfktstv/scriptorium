@@ -100,15 +100,19 @@ def search_repositories(
         statement = statement.where((Repository.is_public == True))
     
     if owner_username:
-        statement = statement.join(User).where(User.username == owner_username)
+        normalized_owner_username = owner_username.lower().strip()
+        statement = statement.join(User).where(
+            User.username.ilike(f"%{normalized_owner_username}%")
+            )
     
     if repository_name:
+        normalized_repository_name = repository_name.lower().strip()
         statement = statement.where(
-            Repository.name.ilike(f"%{repository_name}%")
+            Repository.name.ilike(f"%{normalized_repository_name}%")
             )
         
     if keywords:
-        keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        keyword_list = [k.lower().strip() for k in keywords.split(",") if k.strip()]
         if keyword_list:
             statement = statement.where(
                 Repository.keywords.any(Keyword.name.in_(keyword_list))
@@ -121,3 +125,34 @@ def search_repositories(
             
     repositories = session.exec(statement).all()
     return repositories
+
+@router.get(
+    "/{username}/{name}",
+    status_code=status.HTTP_200_OK,
+    response_model=RepositoryPublic
+)
+def get_repository(
+    username: str,
+    repository_name: str,
+    session: Session = Depends(get_db)
+):
+    normalized_username = username.lower().strip()
+    normalized_repository_name = repository_name.lower().strip()
+    
+    statement = select(Repository)
+    statement = statement.join(User).where(
+        User.username.ilike(normalized_username)
+    )
+    statement = statement.where(
+        Repository.name.ilike(normalized_repository_name)
+    )
+    statement = statement.options(selectinload(Repository.owner))
+    
+    repository = session.exec(statement).first()
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository or User not found"
+        )
+    
+    return repository

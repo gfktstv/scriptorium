@@ -24,7 +24,7 @@ def create_user(
     normalized_email = user.email.lower().strip()
     
     username_record = session.exec(
-        select(User).where(User.username == normalized_username)
+        select(User).where(User.username.ilike(normalized_username))
     ).first()
     if username_record is not None:
         raise HTTPException(
@@ -33,7 +33,7 @@ def create_user(
         )
     
     email_record = session.exec(
-        select(User).where(User.email == normalized_email)
+        select(User).where(User.email.ilike(normalized_email))
     ).first()
     if email_record is not None:
         raise HTTPException(
@@ -70,8 +70,8 @@ def authenticate_user(session: Session, identifier: str, password: str):
     identifier = identifier.lower().strip()
     user = session.exec(
         select(User).where(
-            (User.username == identifier)
-            | (User.email == identifier)
+            (User.username.ilike(identifier))
+            | (User.email.ilike(identifier))
         )
     ).first()
     
@@ -125,7 +125,7 @@ def get_user(
 ):
     normalized_username = username.lower().strip()
     user = session.exec(
-        select(User).where(User.username == normalized_username)
+        select(User).where(User.username.ilike(normalized_username))
     ).first()
     
     if user is None:
