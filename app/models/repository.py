@@ -6,6 +6,7 @@ from pydantic import field_validator
 
 from app.models.keyword import Keyword
 from app.models.link import RepositoryKeywordLink
+from app.models.user import User, UserPublic
 
     
 class RepositoryBase(SQLModel):
@@ -30,8 +31,15 @@ class RepositoryCreate(RepositoryBase):
     
 class RepositoryPublic(RepositoryBase):
     id: int
-    owner_id: int
+    owner: UserPublic
     keywords: List[str] = []
+    
+    @field_validator("keywords", mode="before")
+    @classmethod
+    def serialize_keywords(cls, v):
+        if v and isinstance(v, list) and hasattr(v[0], "name"):
+            return [item.name for item in v]
+        return v
 
 class Repository(RepositoryBase, table=True):
     __tablename__ = "repositories"
@@ -41,7 +49,12 @@ class Repository(RepositoryBase, table=True):
     )
     
     id: Optional[int] = Field(default=None, primary_key=True)
-    owner_id: int = Field(unique=True, foreign_key="users.id", index=True)
+    owner_id: int = Field(foreign_key="users.id", index=True)
+    
+    # This field does not exist in SQL — is simply allows
+    # to fetch User alongside with repository to return full public
+    # info about owner (e.g. username)
+    owner: Optional["User"] = Relationship()
     
     # This field does not exist in SQL — it is simply
     # a smart way to save keywords for each repository

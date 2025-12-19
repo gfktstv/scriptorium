@@ -1,19 +1,23 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from typing import List, Optional
+
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
-from app.models.user import User
-from app.models.repository import RepositoryCreate, Repository
+from app.models.user import UserPublic, User
+from app.models.repository import RepositoryPublic, RepositoryCreate, Repository
 from app.models.keyword import Keyword
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_optional
 
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
 
 @router.post(
     "/",
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    response_model=RepositoryPublic
 )
 def create_repository(
     repository: RepositoryCreate,
@@ -55,9 +59,65 @@ def create_repository(
     try:
         session.add(new_repository)
         session.commit()
+        session.refresh(new_repository)
     except IntegrityError:
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Repository already exists"
         )
+        
+    return RepositoryPublic(
+        name=new_repository.name, 
+        is_public=new_repository.is_public,
+        description=new_repository.description,
+        id=new_repository.id,
+        owner=UserPublic(id=current_user.id, username=current_user.username),
+        keywords=db_keywords
+        )
+        
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    response_model=List[RepositoryPublic]
+)
+def search_repositories(
+    repository_name: Optional[str] = None,
+    keywords: Optional[str] = None,
+    owner_username: Optional[str] = None,
+    offset: int = 0,
+    limit: int = Query(default=20, le=100),
+    session: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user_optional)
+):
+    statement = select(Repository)
+    if current_user is not None:
+        statement = statement.where(
+            (Repository.is_public == True) 
+            | (Repository.owner_id == current_user.id)
+        )
+    else:
+        statement = statement.where((Repository.is_public == True))
+    
+    if owner_username:
+        statement = statement.join(User).where(User.username == owner_username)
+    
+    if repository_name:
+        statement = statement.where(
+            Repository.name.ilike(f"%{repository_name}%")
+            )
+        
+    if keywords:
+        keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        if keyword_list:
+            statement = statement.where(
+                Repository.keywords.any(Keyword.name.in_(keyword_list))
+            )
+    
+    # To fetch owners (User) at the same time as the repos     
+    statement = statement.offset(offset).limit(limit).options(
+        selectinload(Repository.owner)
+        )
+            
+    repositories = session.exec(statement).all()
+    return repositories
