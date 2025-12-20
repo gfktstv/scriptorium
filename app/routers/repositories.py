@@ -127,7 +127,7 @@ def search_repositories(
     return repositories
 
 @router.get(
-    "/{username}/{name}",
+    "/{username}/{repository_name}",
     status_code=status.HTTP_200_OK,
     response_model=RepositoryPublic
 )
@@ -146,13 +146,37 @@ def get_repository(
     statement = statement.where(
         Repository.name.ilike(normalized_repository_name)
     )
-    statement = statement.options(selectinload(Repository.owner))
+    statement = statement.options(
+        selectinload(Repository.owner), 
+        selectinload(Repository.keywords)
+    )
     
     repository = session.exec(statement).first()
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Repository or User not found"
+        )
+    
+    return repository
+
+@router.get(
+    "/{repository_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=RepositoryPublic
+)
+def get_repository_by_id(
+    repository_id: int,
+    session: Session = Depends(get_db)
+):
+    statement = select(Repository).where(Repository.id == repository_id)
+    statement = statement.options(selectinload(Repository.owner))
+    statement = statement.options(selectinload(Repository.keywords))
+    repository = session.exec(statement).first()
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
         )
     
     return repository
