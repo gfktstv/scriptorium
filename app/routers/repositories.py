@@ -238,3 +238,28 @@ def update_repository(
         repository.owner = current_user
         
     return repository
+
+@router.delete(
+    "/{repository_id}",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_repository(
+    repository_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
+):
+    repository = session.get(Repository, repository_id)
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    if repository.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to delete this repository"
+        )
+        
+    session.delete(repository)
+    session.commit()
+    return None
