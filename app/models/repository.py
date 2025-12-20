@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from pydantic import field_validator
 
 from app.models.keyword import Keyword
-from app.models.link import RepositoryKeywordLink
+from app.models.link import RepositoryKeyword
 from app.models.user import User, UserPublic
 
 
@@ -79,7 +79,7 @@ class Repository(RepositoryBase, table=True):
     # saving lines of code.
     keywords: List["Keyword"] = Relationship(
         back_populates="repositories", 
-        link_model=RepositoryKeywordLink
+        link_model=RepositoryKeyword
     )
     
     @field_validator("name")

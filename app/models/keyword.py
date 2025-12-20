@@ -2,7 +2,7 @@ from typing import Optional, List, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Relationship
 
-from app.models.link import RepositoryKeywordLink
+from app.models.link import RepositoryKeyword
 
 
 if TYPE_CHECKING:
@@ -22,5 +22,5 @@ class Keyword(SQLModel, table=True):
     # saving lines of code.
     repositories: List["Repository"] = Relationship(
         back_populates="keywords", 
-        link_model=RepositoryKeywordLink
+        link_model=RepositoryKeyword
     )
