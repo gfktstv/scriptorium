@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models.user import UserPublic, User
-from app.models.repository import RepositoryPublic, RepositoryCreate, Repository
+from app.models.repository import RepositoryUpdate, RepositoryPublic, RepositoryCreate, Repository
 from app.models.keyword import Keyword
 from app.core.security import get_current_user, get_current_user_optional
 
@@ -179,4 +179,62 @@ def get_repository_by_id(
             detail="Repository not found"
         )
     
+    return repository
+
+@router.patch(
+    "/{repository_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=RepositoryPublic
+)
+def update_repository(
+    repository_id: int,
+    repository_update: RepositoryUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
+):
+    repository = session.get(Repository, repository_id)
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    if repository.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to update this repository"
+        )
+        
+    # Keywords are processed separately, therefore we pop keywords field
+    # from update_date, because after that we apply sqlmodel_update
+    # for simple fields like name, description and is_public
+    update_data = repository_update.model_dump(exclude_unset=True)
+    if "keywords" in update_data:
+        keywords = update_data.pop("keywords")
+        if keywords:
+            normalised_keywords = set(
+                k.lower().strip() for k in keywords
+            )
+            
+            new_db_keywords = []
+            for keyword in normalised_keywords:
+                existing_keyword = session.exec(select(Keyword).where(Keyword.name == keyword)).first()
+                if existing_keyword is not None:
+                    new_db_keywords.append(existing_keyword)
+                else:
+                    new_db_keywords.append(Keyword(name=keyword))
+                    
+        repository.keywords = new_db_keywords
+        
+    repository.sqlmodel_update(update_data)
+    
+    session.add(repository)
+    session.commit()
+    session.refresh(repository)
+    
+    # We already fetched current user and assured that 
+    # this user is the owner. To avoid owner fetch we simply set owner
+    # as current_user (optimization)
+    if not repository.owner:
+        repository.owner = current_user
+        
     return repository

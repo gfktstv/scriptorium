@@ -8,6 +8,24 @@ from app.models.keyword import Keyword
 from app.models.link import RepositoryKeywordLink
 from app.models.user import User, UserPublic
 
+
+class RepositoryUpdate(SQLModel):
+    name: Optional[str] = Field(
+        default=None,
+        min_length=3,
+        max_length=30,
+        schema_extra={"pattern": r"^[a-zA-Z0-9_]{3,30}$"},
+        description="Repository name must be 3-30 characters long and can only contain letters, numbers, and underscores."
+    )
+    is_public: Optional[bool] = None
+    description: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        schema_extra={"pattern": r".{1,256}$"},
+        description="Short description of the repository."
+    )
+    keywords: Optional[List[str]] = None
     
 class RepositoryBase(SQLModel):
     name: str = Field(
