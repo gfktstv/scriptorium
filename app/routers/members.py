@@ -82,3 +82,39 @@ def get_list_of_members(
     members = session.exec(statement).all()
     
     return members
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_member(
+    repository_id: int,
+    user_id: int,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    repository = session.get(Repository, repository_id)
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    if repository.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to delete members of this repository"
+        )
+        
+    membership = session.exec(select(RepositoryAccess).where(
+        (RepositoryAccess.repository_id == repository_id)
+        & (RepositoryAccess.user_id == user_id)
+    )).first()
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this repository"
+        )
+    
+    session.delete(membership)
+    session.commit()
+    return None
