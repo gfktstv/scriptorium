@@ -1,7 +1,9 @@
-from enum import Enum
-from sqlmodel import SQLModel, Field
+from typing import Optional
+
+from sqlmodel import SQLModel, Field, Relationship
 
 from app.models.member import AccessLevel
+from app.models.user import User
 
 
 class RepositoryKeyword(SQLModel, table=True):
@@ -32,3 +34,5 @@ class RepositoryAccess(SQLModel, table=True):
     access: AccessLevel = Field(
         default=AccessLevel.VIEW
     )
+    
+    user: Optional["User"] = Relationship()

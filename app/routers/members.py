@@ -1,10 +1,13 @@
+from typing import List
+
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models.user import User
 from app.models.repository import Repository
-from app.models.member import MemberUpdate
+from app.models.member import MemberPublic, MemberUpdate
 from app.models.link import RepositoryAccess
 from app.core.security import get_current_user
 
@@ -61,3 +64,21 @@ def update_membership(
     session.commit()
     
     return {"message": "Membership updated successfully"}
+
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    response_model=List[MemberPublic]
+)
+def get_list_of_members(
+    repository_id: int,
+    session: Session = Depends(get_db)
+):
+    statement = select(RepositoryAccess).where(
+        (RepositoryAccess.repository_id == repository_id)
+        & (RepositoryAccess.user_id == User.id))
+    statement = statement.options(selectinload(RepositoryAccess.user))
+    
+    members = session.exec(statement).all()
+    
+    return members
