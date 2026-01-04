@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.models.user import UserPublic, User
 from app.models.repository import RepositoryUpdate, RepositoryPublic, RepositoryCreate, Repository
 from app.models.keyword import Keyword
+from app.models.link import RepositoryAccess
 from app.core.security import get_current_user, get_current_user_optional
 
 
@@ -95,7 +96,8 @@ def search_repositories(
         statement = statement.where(
             (Repository.is_public == True) 
             | (Repository.owner_id == current_user.id)
-        )
+            | (Repository.id == RepositoryAccess.repository_id)
+        ).join(RepositoryAccess, current_user.id == RepositoryAccess.user_id)
     else:
         statement = statement.where((Repository.is_public == True))
     
