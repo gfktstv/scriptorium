@@ -1,7 +1,8 @@
 from typing import List
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from sqlmodel import Session, select
+from sqlmodel import select, delete
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
@@ -21,14 +22,14 @@ router = APIRouter(
     "/{user_id}",
     status_code=status.HTTP_200_OK,
 )
-def update_membership(
+async def update_membership(
     repository_id: int,
     user_id: int,
     membership_data: MemberUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
-    repository = session.get(Repository, repository_id)
+    repository = await session.get(Repository, repository_id)
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -40,16 +41,18 @@ def update_membership(
             detail="You are not authorized to update members access of this repository"
         )
         
-    target_user = session.get(User, user_id)
+    target_user = await session.get(User, user_id)
     if not target_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
     
-    membership = session.exec(select(RepositoryAccess).where(
-        (RepositoryAccess.repository_id == repository_id)
-        & (RepositoryAccess.user_id == user_id)
+    membership = (await session.exec(
+        select(RepositoryAccess).where(
+                (RepositoryAccess.repository_id == repository_id)
+                & (RepositoryAccess.user_id == user_id)
+        )
     )).first()
     if membership is not None:
         membership.access = membership_data.access
@@ -61,7 +64,7 @@ def update_membership(
         )
         
     session.add(membership)
-    session.commit()
+    await session.commit()
     
     return {"message": "Membership updated successfully"}
 
@@ -70,16 +73,16 @@ def update_membership(
     status_code=status.HTTP_200_OK,
     response_model=List[MemberPublic]
 )
-def get_list_of_members(
+async def get_list_of_members(
     repository_id: int,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     statement = select(RepositoryAccess).where(
         (RepositoryAccess.repository_id == repository_id)
-        & (RepositoryAccess.user_id == User.id))
+    )
     statement = statement.options(selectinload(RepositoryAccess.user))
     
-    members = session.exec(statement).all()
+    members = (await session.exec(statement)).all()
     
     return members
 
@@ -87,13 +90,13 @@ def get_list_of_members(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_member(
+async def delete_member(
     repository_id: int,
     user_id: int,
-    session: Session = Depends(get_db),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    repository = session.get(Repository, repository_id)
+    repository = await session.get(Repository, repository_id)
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -105,16 +108,12 @@ def delete_member(
             detail="You are not authorized to delete members of this repository"
         )
         
-    membership = session.exec(select(RepositoryAccess).where(
-        (RepositoryAccess.repository_id == repository_id)
-        & (RepositoryAccess.user_id == user_id)
-    )).first()
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User is not a member of this repository"
+    await session.exec(
+        delete(RepositoryAccess).where(
+            (RepositoryAccess.repository_id == repository_id)
+            & (RepositoryAccess.user_id == user_id)
         )
-    
-    session.delete(membership)
-    session.commit()
+    )
+
+    await session.commit()
     return None

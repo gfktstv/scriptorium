@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -28,9 +28,9 @@ def create_access_token(subject: str | int) -> str:
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
-def get_current_user(
+async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    session: Annotated[Session, Depends(get_db)]
+    session: Annotated[AsyncSession, Depends(get_db)]
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -46,7 +46,7 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
         
-    user = session.get(User, int(user_id))
+    user = await session.get(User, int(user_id))
     if user is None:
         raise credentials_exception
         
@@ -55,15 +55,15 @@ def get_current_user(
 # This function is needed to show public objects and private if 
 # a user is authorized. For example, to search repos 
 # (if authorized will also show repos owned by the user).
-def get_current_user_optional(
+async def get_current_user_optional(
     token: Annotated[str, Depends(oauth2_scheme_optional)],
-    session: Annotated[Session, Depends(get_db)]
+    session: Annotated[AsyncSession, Depends(get_db)]
 ) -> Optional[User]:
     if token is None:
         return None
     
     try:
-        user = get_current_user(token, session)
+        user = await get_current_user(token, session)
         return user
     except HTTPException:
         return None

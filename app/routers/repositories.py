@@ -1,7 +1,8 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from sqlmodel import Session, select
+from sqlmodel import select, delete
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -20,29 +21,29 @@ router = APIRouter(prefix="/repositories", tags=["Repositories"])
     status_code=status.HTTP_201_CREATED,
     response_model=RepositoryPublic
 )
-def create_repository(
+async def create_repository(
     repository: RepositoryCreate,
-    session: Session = Depends(get_db),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
     ):
     db_keywords = []
     if repository.keywords:
         unique_keywords = set(k.lower().strip() for k in repository.keywords)
         for keyword in unique_keywords:
-            existing_keyword = session.exec(
+            existing_keyword = (await session.exec(
                 select(Keyword).where(Keyword.name == keyword)
-            ).first()
+            )).first()
             if existing_keyword is not None:
                 db_keywords.append(existing_keyword)
             else:
                 db_keywords.append(Keyword(name=keyword))
     
-    record = session.exec(
+    record = (await session.exec(
         select(Repository).where(
             (Repository.owner_id == current_user.id)
             & (Repository.name == repository.name)
         )
-    ).first()
+    )).first()
     if record is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -59,10 +60,10 @@ def create_repository(
     
     try:
         session.add(new_repository)
-        session.commit()
-        session.refresh(new_repository)
+        await session.commit()
+        await session.refresh(new_repository)
     except IntegrityError:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Repository already exists"
@@ -82,13 +83,13 @@ def create_repository(
     status_code=status.HTTP_200_OK,
     response_model=List[RepositoryPublic]
 )
-def search_repositories(
+async def search_repositories(
     repository_name: Optional[str] = None,
     keywords: Optional[str] = None,
     owner_username: Optional[str] = None,
     offset: int = 0,
     limit: int = Query(default=20, le=100),
-    session: Session = Depends(get_db), 
+    session: AsyncSession = Depends(get_db), 
     current_user: User = Depends(get_current_user_optional)
 ):
     statement = select(Repository)
@@ -97,7 +98,12 @@ def search_repositories(
             (Repository.is_public == True) 
             | (Repository.owner_id == current_user.id)
             | (Repository.id == RepositoryAccess.repository_id)
-        ).join(RepositoryAccess, current_user.id == RepositoryAccess.user_id)
+        )
+        statement = statement.join(
+            RepositoryAccess, 
+            (Repository.id == RepositoryAccess.repository_id) 
+            & (RepositoryAccess.user_id == current_user.id),
+            isouter=True)
     else:
         statement = statement.where((Repository.is_public == True))
     
@@ -105,13 +111,13 @@ def search_repositories(
         normalized_owner_username = owner_username.lower().strip()
         statement = statement.join(User).where(
             User.username.ilike(f"%{normalized_owner_username}%")
-            )
+        )
     
     if repository_name:
         normalized_repository_name = repository_name.lower().strip()
         statement = statement.where(
             Repository.name.ilike(f"%{normalized_repository_name}%")
-            )
+        )
         
     if keywords:
         keyword_list = [k.lower().strip() for k in keywords.split(",") if k.strip()]
@@ -122,10 +128,11 @@ def search_repositories(
     
     # To fetch owners (User) at the same time as the repos     
     statement = statement.offset(offset).limit(limit).options(
-        selectinload(Repository.owner)
-        )
+        selectinload(Repository.owner), 
+        selectinload(Repository.keywords)
+    )
             
-    repositories = session.exec(statement).all()
+    repositories = (await session.exec(statement)).all()
     return repositories
 
 @router.get(
@@ -133,10 +140,10 @@ def search_repositories(
     status_code=status.HTTP_200_OK,
     response_model=RepositoryPublic
 )
-def get_repository(
+async def get_repository(
     username: str,
     repository_name: str,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     normalized_username = username.lower().strip()
     normalized_repository_name = repository_name.lower().strip()
@@ -153,7 +160,7 @@ def get_repository(
         selectinload(Repository.keywords)
     )
     
-    repository = session.exec(statement).first()
+    repository = (await session.exec(statement)).first()
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -167,14 +174,14 @@ def get_repository(
     status_code=status.HTTP_200_OK,
     response_model=RepositoryPublic
 )
-def get_repository_by_id(
+async def get_repository_by_id(
     repository_id: int,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     statement = select(Repository).where(Repository.id == repository_id)
     statement = statement.options(selectinload(Repository.owner))
     statement = statement.options(selectinload(Repository.keywords))
-    repository = session.exec(statement).first()
+    repository = (await session.exec(statement)).first()
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -188,13 +195,18 @@ def get_repository_by_id(
     status_code=status.HTTP_200_OK,
     response_model=RepositoryPublic
 )
-def update_repository(
+async def update_repository(
     repository_id: int,
     repository_update: RepositoryUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
-    repository = session.get(Repository, repository_id)
+    statement = select(Repository).where(Repository.id == repository_id)
+    statement = statement.options(
+        selectinload(Repository.keywords)
+    )
+    repository = (await session.exec(statement)).first()
+
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -219,7 +231,9 @@ def update_repository(
             
             new_db_keywords = []
             for keyword in normalised_keywords:
-                existing_keyword = session.exec(select(Keyword).where(Keyword.name == keyword)).first()
+                existing_keyword = (await session.exec(
+                    select(Keyword).where(Keyword.name == keyword)
+                )).first()
                 if existing_keyword is not None:
                     new_db_keywords.append(existing_keyword)
                 else:
@@ -230,14 +244,13 @@ def update_repository(
     repository.sqlmodel_update(update_data)
     
     session.add(repository)
-    session.commit()
-    session.refresh(repository)
+    await session.commit()
+    await session.refresh(repository)
     
     # We already fetched current user and assured that 
     # this user is the owner. To avoid owner fetch we simply set owner
     # as current_user (optimization)
-    if not repository.owner:
-        repository.owner = current_user
+    repository.owner = current_user
         
     return repository
 
@@ -245,12 +258,12 @@ def update_repository(
     "/{repository_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_repository(
+async def delete_repository(
     repository_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
-    repository = session.get(Repository, repository_id)
+    repository = await session.get(Repository, repository_id)
     if repository is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -262,6 +275,8 @@ def delete_repository(
             detail="You are not authorized to delete this repository"
         )
         
-    session.delete(repository)
-    session.commit()
+    await session.exec(
+        delete(Repository).where(Repository.id == repository_id)
+    )
+    await session.commit()
     return None

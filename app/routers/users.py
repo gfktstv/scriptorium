@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.core.security import hash_password, verify_password, create_access_token
@@ -16,25 +17,25 @@ router = APIRouter(prefix="/users", tags=["Users"])
     status_code=status.HTTP_201_CREATED,
     response_model=UserPublic
 )
-def create_user(
+async def create_user(
     user: UserRegister,
-    session: Session = Depends(get_db)
-    ):
+    session: AsyncSession = Depends(get_db)
+    ) -> UserPublic:
     normalized_username = user.username.lower().strip()
     normalized_email = user.email.lower().strip()
     
-    username_record = session.exec(
+    username_record = (await session.exec(
         select(User).where(User.username.ilike(normalized_username))
-    ).first()
+    )).first()
     if username_record is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username is already taken"
         )
     
-    email_record = session.exec(
+    email_record = (await session.exec(
         select(User).where(User.email.ilike(normalized_email))
-    ).first()
+    )).first()
     if email_record is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,18 +50,22 @@ def create_user(
     
     try:
         session.add(new_user)
-        session.commit()
+        await session.commit()
     except IntegrityError:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="User already exists"
         )
         
-    session.refresh(new_user)
+    await session.refresh(new_user)
     return UserPublic(id=new_user.id, username=new_user.username)
 
-def authenticate_user(session: Session, identifier: str, password: str):
+async def authenticate_user(
+    session: AsyncSession, 
+    identifier: str, 
+    password: str
+    ) -> User:
     credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User with this email/username does not exist or password is incorrect",
@@ -68,12 +73,12 @@ def authenticate_user(session: Session, identifier: str, password: str):
         )
     
     identifier = identifier.lower().strip()
-    user = session.exec(
+    user = (await session.exec(
         select(User).where(
             (User.username.ilike(identifier))
             | (User.email.ilike(identifier))
         )
-    ).first()
+    )).first()
     
     if user is None or not verify_password(password, user.hashed_password):
         raise credentials_exception
@@ -85,15 +90,15 @@ def authenticate_user(session: Session, identifier: str, password: str):
     status_code=status.HTTP_200_OK,
     response_model=Token
 )
-def login_user(
+async def login_user(
     user: UserLogin,
-    session: Session = Depends(get_db)
-):
-    user = authenticate_user(
-            session, 
-            identifier=user.username, 
-            password=user.password
-            )
+    session: AsyncSession = Depends(get_db)
+) -> Token:
+    user = await authenticate_user(
+        session, 
+        identifier=user.username, 
+        password=user.password
+    )
     
     return Token(access_token=create_access_token(user.id))
 
@@ -103,15 +108,15 @@ def login_user(
     response_model=Token,
     include_in_schema=False
 )
-def login_swagger(
+async def login_swagger(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_db)
-):
-    user = authenticate_user(
-            session, 
-            identifier=form_data.username, 
-            password=form_data.password
-            )
+    session: AsyncSession = Depends(get_db)
+) -> Token:
+    user = await authenticate_user(
+        session, 
+        identifier=form_data.username, 
+        password=form_data.password
+    )
     
     return Token(access_token=create_access_token(user.id))
 
@@ -119,14 +124,14 @@ def login_swagger(
     "/{username}",
     response_model=UserPublic
 )
-def get_user(
+async def get_user(
     username: str,
-    session: Session = Depends(get_db)
-):
+    session: AsyncSession = Depends(get_db)
+) -> UserPublic:
     normalized_username = username.lower().strip()
-    user = session.exec(
+    user = (await session.exec(
         select(User).where(User.username.ilike(normalized_username))
-    ).first()
+    )).first()
     
     if user is None:
         raise HTTPException(

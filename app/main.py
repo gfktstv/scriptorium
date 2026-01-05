@@ -12,7 +12,10 @@ from app.routers import users, repositories, members
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Temporary solution for database initialization (will be replaced with migrations later)
-    SQLModel.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        # run_sync executes the synchronous create_all method 
+        # using the underlying synchronous driver
+        await conn.run_sync(SQLModel.metadata.create_all)
     
     yield
     
