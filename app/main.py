@@ -7,7 +7,7 @@ from sqlmodel import SQLModel
 import app.models
 from app.core.config import settings
 from app.db.session import engine
-from app.routers import users, repositories, members
+from app.routers import users, repositories, members, objects
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +28,7 @@ app = FastAPI(
 app.include_router(users.router)
 app.include_router(repositories.router)
 app.include_router(members.router)
+app.include_router(objects.router)
 
 if __name__ == "__main__":
 	uvicorn.run(

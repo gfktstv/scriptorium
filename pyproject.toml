@@ -40,7 +40,10 @@ dependencies = [
     "typing_extensions",
     "uvicorn",
     "python-jose[cryptography]",
-    "python-multipart"
+    "python-multipart",
+    "python-magic",
+    "libmagic",
+    "aiobotocore"
 ]
 
 [tool.setuptools.packages.find]
